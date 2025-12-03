@@ -15,7 +15,7 @@ class EventoController extends Controller
             ->get();
 
         return inertia('Eventos/Index', [
-            'eventos' => $eventos
+            'eventos' => $eventos //para
         ]);
     }
 
@@ -135,26 +135,33 @@ class EventoController extends Controller
 
         
 
-            // 4) Distancia REAL (Haversine)
-            $ev->distancia = null;
+            // 3) Distancia REAL (Haversine)
+                $ev->distancia = null;
 
-            if ($latUsuario && $lngUsuario) {
+                if ($latUsuario && $lngUsuario) {
 
-                $theta = $lngUsuario - $ev->longitud;
+                    // Convertir todo a float para evitar errores en PHP 8.2
+                    $latU = floatval($latUsuario);
+                    $lngU = floatval($lngUsuario);
+                    $latE = floatval($ev->latitud);
+                    $lngE = floatval($ev->longitud);
 
-                $dist = sin(deg2rad($latUsuario)) * sin(deg2rad($ev->latitud)) +
-                        cos(deg2rad($latUsuario)) * cos(deg2rad($ev->latitud)) *
-                        cos(deg2rad($theta));
+                    $theta = $lngU - $lngE;
 
-                $dist = acos($dist);
-                $dist = rad2deg($dist);
-                $km = $dist * 60 * 1.1515 * 1.609344;
+                    $dist = sin(deg2rad($latU)) * sin(deg2rad($latE)) +
+                            cos(deg2rad($latU)) * cos(deg2rad($latE)) *
+                            cos(deg2rad($theta));
 
-                $ev->distancia = round($km, 3);
+                    $dist = acos($dist);                 // radianes                          
+                    $dist = rad2deg($dist);              // grados
+                    $km = $dist * 60 * 1.1515 * 1.609344;
 
-                if ($km < 1) $score += 20;
-                elseif ($km < 3) $score += 10;
-            }
+                    $ev->distancia = round($km, 3);
+
+                    if ($km < 1) $score += 20;
+                    elseif ($km < 3) $score += 10;
+}
+
 
             $ev->relevancia = $score;
         }
@@ -162,7 +169,7 @@ class EventoController extends Controller
         // Ordenar eventos
         $eventos = $eventos->sortByDesc('relevancia')->values();
 
-        // 🔥 IMPORTANTE → Vue espera "eventos"
+        //  Vue espera "eventos"
         return response()->json([
             'eventos' => $eventos
         ]);
