@@ -6,6 +6,8 @@ use App\Models\Evento;
 use App\Models\CategoriaInteres;
 use App\Models\OpcionInteres;
 use Illuminate\Http\Request;
+use App\DTO\UserContext;
+use App\Services\EventoRecomendadorService;
 
 class EventoController extends Controller
 {
@@ -88,20 +90,15 @@ class EventoController extends Controller
     // ============================================================
     //  POST: recibe ubicación → calcula distancia → retorna JSON
     // ============================================================
-    public function actualizarMapa(Request $request)
+    
+
+    public function actualizarMapa(Request $request, EventoRecomendadorService $recomendador)
     {
         $usuario = auth()->user();
 
-        $latUsuario = $request->lat_usuario;
-        $lngUsuario = $request->lng_usuario;
+        $lat = $request->lat_usuario ?: $usuario->latitud;
+        $lng = $request->lng_usuario ?: $usuario->longitud;
 
-        // Si el navegador no envía nada → usar la guardada (si existe)
-        if (!$latUsuario || !$lngUsuario) {
-            $latUsuario = $usuario->latitud;
-            $lngUsuario = $usuario->longitud;
-        }
-
-        // Intereses
         $interesesIds = $usuario->intereses()->pluck('opcion_interes_id')->toArray();
 
         $interesesNombres = $usuario->intereses()
@@ -112,59 +109,16 @@ class EventoController extends Controller
             ->values()
             ->toArray();
 
-        // Eventos con relaciones
-        $eventos = Evento::with([
-            'categoria:id,nombre',
-            'opcion:id,nombre,categoria_interes_id'
-        ])->get();
+        $ctx = new UserContext(
+            $interesesIds,
+            $interesesNombres,
+            $lat ? (float)$lat : null,
+            $lng ? (float)$lng : null
+        );
 
-        // CÁLCULOS
-        foreach ($eventos as $ev) {
-
-            $score = 0;
-
-            // 1) Interés exacto
-            if (in_array($ev->opcion_interes_id, $interesesIds)) {
-                $score += 50;
-            }
-
-            // 2) Nombre de interés
-            if ($ev->opcion && in_array($ev->opcion->nombre, $interesesNombres)) {
-                $score += 30;
-            }
-
-        
-
-            // 3) Distancia REAL (Haversine)
-            $ev->distancia = null;
-
-            if ($latUsuario && $lngUsuario) {
-
-                $theta = $lngUsuario - $ev->longitud;
-
-                $dist = sin(deg2rad($latUsuario)) * sin(deg2rad($ev->latitud)) +
-                        cos(deg2rad($latUsuario)) * cos(deg2rad($ev->latitud)) *
-                        cos(deg2rad($theta));
-
-                $dist = acos($dist);// pasa de cos(ángulo) a ángulo (en radianes)                      
-                $dist = rad2deg($dist);// convierte ese ángulo a grados
-                $km = $dist * 60 * 1.1515 * 1.609344;
-
-                $ev->distancia = round($km, 3);
-
-                if ($km < 1) $score += 20;
-                elseif ($km < 3) $score += 10;
-            }
-
-            $ev->relevancia = $score;
-        }
-
-        // Ordenar eventos
-        $eventos = $eventos->sortByDesc('relevancia')->values();
-
-        //  Vue espera "eventos"
         return response()->json([
-            'eventos' => $eventos
+            'eventos' => $recomendador->recomendar($ctx)
         ]);
     }
+
 }

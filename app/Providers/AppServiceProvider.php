@@ -1,24 +1,19 @@
-<?php
+use App\Repositories\EventoRepository;
+use App\Services\EventoRecomendadorService;
+use App\Recomendacion\Reglas\ReglaInteresExacto;
+use App\Recomendacion\Reglas\ReglaNombreInteres;
+use App\Recomendacion\Reglas\ReglaDistancia;
 
-namespace App\Providers;
-
-use Illuminate\Support\ServiceProvider;
-
-class AppServiceProvider extends ServiceProvider
+public function register(): void
 {
-    /**
-     * Register any application services.
-     */
-    public function register(): void
-    {
-        //
-    }
-
-    /**
-     * Bootstrap any application services.
-     */
-    public function boot(): void
-    {
-        //
-    }
+    $this->app->singleton(EventoRecomendadorService::class, function ($app) {
+        return new EventoRecomendadorService(
+            $app->make(EventoRepository::class),
+            [
+                new ReglaInteresExacto(),
+                new ReglaNombreInteres(),
+                new ReglaDistancia(),
+            ]
+        );
+    });
 }
